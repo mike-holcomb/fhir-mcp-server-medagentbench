@@ -33,7 +33,7 @@ python = ">=3.10"
 mcp = "^1.5.0"
 
 [tool.poetry.scripts]
-fhir-mcp-server-medagentbench = "src.fhir_mcp_server_medagentbench.main:run"
+fhir-mcp-server-medagentbench = "fhir_mcp_server_medagentbench.main:run"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0" # Relax constraint slightly
