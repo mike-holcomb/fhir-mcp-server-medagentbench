@@ -1,0 +1,48 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-added-large-files
+
+-   repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+    -   id: black
+        language_version: python3.10
+
+-   repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+    -   id: isort
+        name: isort (python)
+        args: ["--profile", "black"]
+
+-   repo: https://github.com/PyCQA/flake8
+    rev: 7.1.0
+    hooks:
+    -   id: flake8
+
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+    -   id: mypy
+        # Optional: Specify additional dependencies if your code relies on
+        # stubs or libraries with type hints for mypy to work correctly.
+        # additional_dependencies: [types-requests, ...]
+        args: [--config-file, pyproject.toml]
+        # Ensure mypy runs with the correct environment if needed
+        # pass_filenames: false # Might be needed if mypy struggles with individual files
+
+# You might want to add pytest/coverage here, but it can be slow.
+# It's often preferred to run tests in the CI pipeline rather than pre-commit.
+# -   repo: local
+#     hooks:
+#     -   id: pytest-cov
+#         name: pytest coverage
+#         entry: poetry run pytest --cov=src --cov-report=term-missing
+#         language: system
+#         pass_filenames: false
+#         always_run: true
