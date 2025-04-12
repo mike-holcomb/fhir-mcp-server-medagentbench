@@ -1,31 +1,20 @@
 import pytest
-import json
-from urllib.parse import urlencode, urlparse
 
-import mcp.types as types
 from fhir_mcp_server_medagentbench.main import (
-    list_resources,
-    read_resource,
-    list_tools,
-    call_tool,
-    FHIR_BASE_URL, # Import to verify fixture works
+    FHIR_BASE_URL,
+    create_fhir_resource,
+    get_capability_statement,
+    get_fhir_resource,
+    read_fhir,
+    search_fhir,
 )
 
-# Mark all tests in this module as asyncio
-pytestmark = pytest.mark.asyncio
 
-
-async def test_list_resources():
-    """Test the list_resources function."""
-    resources = await list_resources()
-    assert len(resources) == 1
-    resource = resources[0]
-    assert isinstance(resource, types.Resource)
-    # Compare string representation of URI
-    assert str(resource.uri) == "fhir://CapabilityStatement"
-    assert resource.name == "Capability Statement"
-    assert resource.description == f"GET {FHIR_BASE_URL}/metadata"
-    assert resource.mimeType == "application/fhir+json"
+def test_get_capability_statement():
+    """Test the get_capability_statement resource function."""
+    result = get_capability_statement()
+    expected_url = f"GET {FHIR_BASE_URL}/metadata"
+    assert result == expected_url
 
 
 @pytest.mark.parametrize(
@@ -34,83 +23,118 @@ async def test_list_resources():
         ("fhir://Patient/123", "Patient/123"),
         ("fhir://Observation/abc-xyz", "Observation/abc-xyz"),
         ("fhir://MedicationRequest/order-5", "MedicationRequest/order-5"),
-    ]
+        # Expect lowercase output because input URI path is lowercase
+        ("fhir://encounter/enc-1", "encounter/enc-1"),
+    ],
 )
-async def test_read_resource(input_uri, expected_url_part):
-    """Test the read_resource function."""
-    result = await read_resource(uri=input_uri)
-    assert isinstance(result, types.ReadResourceResult)
-    assert len(result.contents) == 1
-    content = result.contents[0]
-    assert isinstance(content, types.ResourceContents) # Use ResourceContents based on error hint
-    assert str(content.uri) == input_uri # Compare string representations
-    assert content.mimeType == "application/fhir+json"
+def test_get_fhir_resource(input_uri, expected_url_part):
+    """Test the get_fhir_resource function."""
+    # The function under test receives resource_type and resource_id as args.
+    # We derive these test args from the expected_url_part.
+    path_parts = expected_url_part.split("/", 1)
+    assert len(path_parts) == 2, f"Invalid expected_url_part: {expected_url_part}"
+    resource_type_arg = path_parts[0]
+    resource_id_arg = path_parts[1]
 
-    # Re-parse the input_uri here to get the expected lowercase hostname
-    parsed_expected = urlparse(input_uri)
-    expected_resource_type = parsed_expected.hostname
-    expected_resource_id = parsed_expected.path.strip("/")
-    expected_final_text = f"GET {FHIR_BASE_URL}/{expected_resource_type}/{expected_resource_id}"
+    # Call the function with arguments derived from expected_url_part
+    result = get_fhir_resource(
+        resource_type=resource_type_arg, resource_id=resource_id_arg
+    )
 
-    assert content.text == expected_final_text # Compare with text constructed using lowercase hostname
-
-
-async def test_list_tools():
-    """Test the list_tools function."""
-    tools = await list_tools()
-    assert len(tools) == 3
-    tool_names = {tool.name for tool in tools}
-    assert tool_names == {"search_fhir", "read_fhir", "create_fhir_resource"}
-
-    for tool in tools:
-        assert isinstance(tool, types.Tool)
-        assert isinstance(tool.description, str)
-        assert isinstance(tool.inputSchema, dict)
-        if tool.name == "search_fhir":
-            assert tool.inputSchema["required"] == ["resourceType"]
-            assert "searchParams" in tool.inputSchema["properties"]
-        elif tool.name == "read_fhir":
-            assert tool.inputSchema["required"] == ["uri"]
-        elif tool.name == "create_fhir_resource":
-            assert tool.inputSchema["required"] == ["resourceType", "resourceData"]
+    # Assert against the expected URL which uses the case from expected_url_part
+    expected_url = f"GET {FHIR_BASE_URL}/{expected_url_part}"
+    assert result == expected_url
 
 
 @pytest.mark.parametrize(
-    "tool_name, tool_args, expected_text",
+    "tool_args, expected_text",
     [
         (
-            "search_fhir",
-            {"resourceType": "Patient", "searchParams": {"name": "John Doe", "_count": "10"}},
-            f"GET {FHIR_BASE_URL}/Patient?name=John+Doe&_count=10"
-        ),
-        (
-            "search_fhir",
-            {"resourceType": "Observation"},
-            f"GET {FHIR_BASE_URL}/Observation?"
-        ),
-        (
-            "read_fhir",
-            {"uri": "fhir://Encounter/enc-1"},
-            f"GET {FHIR_BASE_URL}/encounter/enc-1" # Expect lowercase 'encounter'
-        ),
-        (
-            "create_fhir_resource",
             {
-                "resourceType": "MedicationRequest",
-                "resourceData": {"status": "active", "intent": "order"}
+                "resourceType": "Patient",
+                "searchParams": {"name": "John Doe", "_count": "10"},
             },
-            f"POST {FHIR_BASE_URL}/MedicationRequest\n{{\n  \"status\": \"active\",\n  \"intent\": \"order\"\n}}"
+            # Expect case preserved from input arg
+            f"GET {FHIR_BASE_URL}/Patient?name=John+Doe&_count=10",
         ),
         (
-            "unknown_tool",
-            {"arg": "value"},
-            "Unknown tool"
-        )
-    ]
+            # Input is lowercase
+            {"resourceType": "observation"},
+            # Expect lowercase in URL
+            f"GET {FHIR_BASE_URL}/observation?",
+        ),
+        (
+            {"resourceType": "MedicationRequest", "searchParams": {}},
+            # Expect case preserved from input arg
+            f"GET {FHIR_BASE_URL}/MedicationRequest?",
+        ),
+    ],
 )
-async def test_call_tool(tool_name, tool_args, expected_text):
-    """Test the call_tool function for various tools."""
-    results = await call_tool(name=tool_name, arguments=tool_args)
-    assert len(results) == 1
-    assert isinstance(results[0], types.TextContent)
-    assert results[0].text == expected_text
+def test_search_fhir(tool_args, expected_text):
+    """Test the search_fhir tool function."""
+    result = search_fhir(**tool_args)
+    assert result == expected_text
+
+
+# Test read_fhir tool (Note its redundancy)
+@pytest.mark.parametrize(
+    "tool_args, expected_text",
+    [
+        (
+            # Input URI path is lowercase
+            {"uri": "fhir://encounter/enc-1"},
+            # Expect lowercase resource type in the output URL
+            f"GET {FHIR_BASE_URL}/encounter/enc-1",
+        ),
+        (
+            {"uri": "fhir://Patient/pat-xyz"},
+            # Expect case preserved from URI path
+            f"GET {FHIR_BASE_URL}/Patient/pat-xyz",
+        ),
+    ],
+)
+def test_read_fhir(tool_args, expected_text):
+    """Test the read_fhir tool function."""
+    result = read_fhir(**tool_args)
+    assert result == expected_text
+
+
+@pytest.mark.parametrize(
+    "tool_args, expected_text",
+    [
+        (
+            {
+                # Input is lowercase
+                "resourceType": "medicationRequest",
+                "resourceData": {"status": "active", "intent": "order"},
+            },
+            # Expect lowercase resource type in the output URL
+            f'POST {FHIR_BASE_URL}/medicationRequest\n{{\n  "status": "active",\n  "intent": "order"\n}}',  # noqa: E501
+        ),
+        (
+            {
+                "resourceType": "Observation",
+                "resourceData": {
+                    "code": {"coding": [{"system": "loinc", "code": "123"}]}
+                },
+            },
+            # Expect case preserved from input arg
+            f'POST {FHIR_BASE_URL}/Observation\n{{\n  "code": {{\n    "coding": [\n      {{\n        "system": "loinc",\n        "code": "123"\n      }}\n    ]\n  }}\n}}',  # noqa: E501
+        ),
+    ],
+)
+def test_create_fhir_resource(tool_args, expected_text):
+    """Test the create_fhir_resource tool function."""
+    result = create_fhir_resource(**tool_args)
+    assert result == expected_text
+
+
+def test_read_fhir_error():
+    """Test the read_fhir tool function with an invalid URI."""
+    invalid_uri = "http://invalid-uri"
+    result = read_fhir(uri=invalid_uri)
+    # Update assertion to match the actual error message for invalid scheme
+    assert (
+        result
+        == f"Error: Invalid or unsupported URI scheme for read_fhir: {invalid_uri}"
+    )

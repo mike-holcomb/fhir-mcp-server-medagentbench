@@ -1,131 +1,72 @@
-import asyncio
 import json
 import os
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode
 
-import mcp.types as types
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
+from mcp.server.fastmcp import FastMCP
 
 FHIR_BASE_URL = os.environ.get("FHIR_BASE_URL", None)
 if not FHIR_BASE_URL:
     raise ValueError("FHIR_BASE_URL environment variable is required")
 
 
-app: Server = Server(
-    name="@mike-holcomb/mpc-fhir-python-medagentbench", version="0.1.0"
-)
+app = FastMCP(name="@mike-holcomb/mpc-fhir-python-medagentbench", version="0.1.0")
 
 
-@app.list_resources()
-async def list_resources() -> list[types.Resource]:
-    return [
-        types.Resource(
-            uri="fhir://CapabilityStatement",  # type: ignore[arg-type]
-            name="Capability Statement",
-            description=f"GET {FHIR_BASE_URL}/metadata",
-            mimeType="application/fhir+json",
-        )
-    ]
+@app.resource("fhir://CapabilityStatement")
+def get_capability_statement() -> str:
+    """Get the FHIR Capability Statement"""
+    url = f"{FHIR_BASE_URL}/metadata"
+    return f"GET {url}"
 
 
-@app.read_resource()
-async def read_resource(uri: str) -> types.ReadResourceResult:
-    parsed = urlparse(uri)
-    resource_type = parsed.hostname
-    resource_id = parsed.path.strip("/")
+@app.resource("fhir://{resource_type}/{resource_id}")
+def get_fhir_resource(resource_type: str, resource_id: str) -> str:
+    """Read a specific FHIR resource by type and ID"""
+    # Use the resource_type directly as provided
     url = f"{FHIR_BASE_URL}/{resource_type}/{resource_id}"
-
-    return types.ReadResourceResult(
-        contents=[
-            types.TextResourceContents(
-                uri=uri,  # type: ignore[arg-type]
-                mimeType="application/fhir+json",
-                text=f"GET {url}",
-            )
-        ]
-    )
+    return f"GET {url}"
 
 
-@app.list_tools()
-async def list_tools() -> list[types.Tool]:
-    return [
-        types.Tool(
-            name="search_fhir",
-            description="Search FHIR resources",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "resourceType": {"type": "string"},
-                    "searchParams": {"type": "object"},
-                },
-                "required": ["resourceType"],
-            },
-        ),
-        types.Tool(
-            name="read_fhir",
-            description="Read FHIR resource by URI",
-            inputSchema={
-                "type": "object",
-                "properties": {"uri": {"type": "string"}},
-                "required": ["uri"],
-            },
-        ),
-        types.Tool(
-            name="create_fhir_resource",
-            description="Create new FHIR resource",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "resourceType": {"type": "string"},
-                    "resourceData": {"type": "object"},
-                },
-                "required": ["resourceType", "resourceData"],
-            },
-        ),
-    ]
+@app.tool()
+def search_fhir(resourceType: str, searchParams: dict = {}) -> str:
+    """Search FHIR resources"""
+    # Use resourceType directly as provided
+    url = f"{FHIR_BASE_URL}/{resourceType}?{urlencode(searchParams)}"
+    return f"GET {url}"
 
 
-@app.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
-    if name == "search_fhir":
-        resource_type = arguments["resourceType"]
-        params = arguments.get("searchParams", {})
-        url = f"{FHIR_BASE_URL}/{resource_type}?{urlencode(params)}"
-        return [types.TextContent(type="text", text=f"GET {url}")]
+@app.tool()
+def read_fhir(uri: str) -> str:
+    """Read FHIR resource by URI (Note: redundant with fhir:// resource)"""
+    # Manual parsing for fhir:// URIs
+    prefix = "fhir://"
+    if not uri.startswith(prefix):
+        # Maybe try urlparse for other schemes or return error?
+        # For now, assume only fhir:// is supported by this tool.
+        return f"Error: Invalid or unsupported URI scheme for read_fhir: {uri}"
 
-    elif name == "read_fhir":
-        uri = arguments["uri"]
-        parsed = urlparse(uri)
-        # Use hostname (lowercase) and path from urlparse
-        resource_type = parsed.hostname
-        resource_id = parsed.path.strip("/")
+    # Strip prefix and split the rest
+    path_part = uri[len(prefix) :]
+    path_parts = path_part.split("/", 1)  # Split only on the first '/'
 
-        if not resource_type:
-            return [
-                types.TextContent(
-                    type="text",
-                    text=f"Error: Could not determine resource type from URI: {uri}",
-                )
-            ]
+    if len(path_parts) != 2 or not path_parts[0] or not path_parts[1]:
+        return f"Error: Could not determine resource type and ID from URI path: {uri}"
 
-        url = f"{FHIR_BASE_URL}/{resource_type}/{resource_id}"
-        return [types.TextContent(type="text", text=f"GET {url}")]
+    resource_type, resource_id = path_parts  # Case is preserved
 
-    elif name == "create_fhir_resource":
-        resource_type = arguments["resourceType"]
-        resource_data = arguments["resourceData"]
-        url = f"{FHIR_BASE_URL}/{resource_type}"
-        json_body = json.dumps(resource_data, indent=2)
-        return [types.TextContent(type="text", text=f"POST {url}\n{json_body}")]
-
-    return [types.TextContent(type="text", text="Unknown tool")]
+    # Construct the URL using the extracted, case-preserved parts
+    url = f"{FHIR_BASE_URL}/{resource_type}/{resource_id}"
+    return f"GET {url}"
 
 
-async def main():
-    async with stdio_server() as (reader, writer):
-        await app.run(reader, writer)
+@app.tool()
+def create_fhir_resource(resourceType: str, resourceData: dict) -> str:
+    """Create new FHIR resource"""
+    # Use resourceType directly as provided
+    url = f"{FHIR_BASE_URL}/{resourceType}"
+    json_body = json.dumps(resourceData, indent=2)
+    return f"POST {url}\n{json_body}"
 
 
 def run():
-    asyncio.run(main())
+    app.run()
