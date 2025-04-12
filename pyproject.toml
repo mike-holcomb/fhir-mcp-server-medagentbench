@@ -1,17 +1,45 @@
 [project]
 name = "fhir-mcp-server-medagentbench"
-version = "0.1.0"
-description = "MCP-compatible FHIR mock server for MedAgentBench"
+dynamic = ["version", "description"]
 authors = [{ name = "Mike Holcomb", email = "michael.holcomb@utsouthwestern.edu" }]
 readme = "README.md"
-requires-python = ">=3.11"
-dependencies = [
-    "modelcontextprotocol>=1.5.0",
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
 ]
 
-[project.scripts]
-fhir-mcp-server-medagentbench = "fhir_mcp_server_medagentbench.main:run"
+[project.urls]
+"Homepage" = "https://github.com/MikeHolcomb/mcp-fhir-python-medagentbench"
+"Bug Tracker" = "https://github.com/MikeHolcomb/mcp-fhir-python-medagentbench/issues"
+
 
 [build-system]
-requires = ["setuptools>=61"]
-build-backend = "setuptools.build_meta"
+# Use poetry-core for the build system
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "fhir-mcp-server-medagentbench"
+version = "0.1.0"
+description = "MCP Server for FHIR operations (MedAgentBench)"
+# Correct authors format for tool.poetry
+authors = ["Mike Holcomb <michael.holcomb@utsouthwestern.edu>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+# Set correct Python version and add dependencies
+python = ">=3.10"
+mcp = "^1.5.0"
+
+[tool.poetry.scripts]
+fhir-mcp-server-medagentbench = "src.fhir_mcp_server_medagentbench.main:run"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.1.1"
+pytest-asyncio = "^0.23.6"
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "src"
+]
