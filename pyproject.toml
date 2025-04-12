@@ -36,8 +36,11 @@ mcp = "^1.5.0"
 fhir-mcp-server-medagentbench = "src.fhir_mcp_server_medagentbench.main:run"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.1.1"
-pytest-asyncio = "^0.23.6"
+pytest = "^8.0" # Relax constraint slightly
+pytest-asyncio = "^0.23" # Relax constraint slightly
+mock = "^5.1.0"
+httpx = "^0.27.0"
+anyio = "^4.0" # Add anyio explicitly
 
 [tool.pytest.ini_options]
 pythonpath = [
