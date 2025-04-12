@@ -1,0 +1,17 @@
+[project]
+name = "fhir-mcp-server-medagentbench"
+version = "0.1.0"
+description = "MCP-compatible FHIR mock server for MedAgentBench"
+authors = [{ name = "Mike Holcomb", email = "michael.holcomb@utsouthwestern.edu" }]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "modelcontextprotocol>=1.5.0",
+]
+
+[project.scripts]
+fhir-mcp-server-medagentbench = "fhir_mcp_server_medagentbench.main:run"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
