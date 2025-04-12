@@ -1,7 +1,7 @@
 import asyncio
 import json
 import os
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -33,14 +33,14 @@ async def list_resources() -> list[types.Resource]:
 
 @app.read_resource()
 async def read_resource(uri: str) -> types.ReadResourceResult:
-    parsed = types.parse_resource_uri(uri)
-    resource_type = parsed.host
+    parsed = urlparse(uri)
+    resource_type = parsed.hostname
     resource_id = parsed.path.strip("/")
     url = f"{FHIR_BASE_URL}/{resource_type}/{resource_id}"
 
     return types.ReadResourceResult(
         contents=[
-            types.ResourceContent(
+            types.TextResourceContents(
                 uri=uri,
                 mimeType="application/fhir+json",
                 text=f"GET {url}"
@@ -100,9 +100,14 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
     elif name == "read_fhir":
         uri = arguments["uri"]
-        parsed = types.parse_resource_uri(uri)
-        resource_type = parsed.host
+        parsed = urlparse(uri)
+        # Use hostname (lowercase) and path from urlparse
+        resource_type = parsed.hostname
         resource_id = parsed.path.strip("/")
+
+        if not resource_type:
+            return [types.TextContent(type="text", text=f"Error: Could not determine resource type from URI: {uri}")]
+
         url = f"{FHIR_BASE_URL}/{resource_type}/{resource_id}"
         return [types.TextContent(type="text", text=f"GET {url}")]
 

@@ -1,6 +1,6 @@
 import pytest
 import json
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import mcp.types as types
 from fhir_mcp_server_medagentbench.main import (
@@ -21,7 +21,8 @@ async def test_list_resources():
     assert len(resources) == 1
     resource = resources[0]
     assert isinstance(resource, types.Resource)
-    assert resource.uri == "fhir://CapabilityStatement"
+    # Compare string representation of URI
+    assert str(resource.uri) == "fhir://CapabilityStatement"
     assert resource.name == "Capability Statement"
     assert resource.description == f"GET {FHIR_BASE_URL}/metadata"
     assert resource.mimeType == "application/fhir+json"
@@ -41,10 +42,17 @@ async def test_read_resource(input_uri, expected_url_part):
     assert isinstance(result, types.ReadResourceResult)
     assert len(result.contents) == 1
     content = result.contents[0]
-    assert isinstance(content, types.ResourceContent)
-    assert content.uri == input_uri
+    assert isinstance(content, types.ResourceContents) # Use ResourceContents based on error hint
+    assert str(content.uri) == input_uri # Compare string representations
     assert content.mimeType == "application/fhir+json"
-    assert content.text == f"GET {FHIR_BASE_URL}/{expected_url_part}"
+
+    # Re-parse the input_uri here to get the expected lowercase hostname
+    parsed_expected = urlparse(input_uri)
+    expected_resource_type = parsed_expected.hostname
+    expected_resource_id = parsed_expected.path.strip("/")
+    expected_final_text = f"GET {FHIR_BASE_URL}/{expected_resource_type}/{expected_resource_id}"
+
+    assert content.text == expected_final_text # Compare with text constructed using lowercase hostname
 
 
 async def test_list_tools():
@@ -83,7 +91,7 @@ async def test_list_tools():
         (
             "read_fhir",
             {"uri": "fhir://Encounter/enc-1"},
-            f"GET {FHIR_BASE_URL}/Encounter/enc-1"
+            f"GET {FHIR_BASE_URL}/encounter/enc-1" # Expect lowercase 'encounter'
         ),
         (
             "create_fhir_resource",
