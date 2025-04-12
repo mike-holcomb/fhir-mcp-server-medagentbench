@@ -7,3 +7,6 @@ dist
 build
 .env
 ref
+.mypy_cache
+.pytest_cache
+# .flake8

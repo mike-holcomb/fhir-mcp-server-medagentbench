@@ -3,19 +3,17 @@ import json
 import os
 from urllib.parse import urlencode, urlparse
 
+import mcp.types as types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-import mcp.types as types
-
 
 FHIR_BASE_URL = os.environ.get("FHIR_BASE_URL", None)
 if not FHIR_BASE_URL:
     raise ValueError("FHIR_BASE_URL environment variable is required")
 
 
-app = Server(
-    name="@mike-holcomb/mpc-fhir-python-medagentbench",
-    version="0.1.0"
+app: Server = Server(
+    name="@mike-holcomb/mpc-fhir-python-medagentbench", version="0.1.0"
 )
 
 
@@ -23,10 +21,10 @@ app = Server(
 async def list_resources() -> list[types.Resource]:
     return [
         types.Resource(
-            uri="fhir://CapabilityStatement",
+            uri="fhir://CapabilityStatement",  # type: ignore[arg-type]
             name="Capability Statement",
             description=f"GET {FHIR_BASE_URL}/metadata",
-            mimeType="application/fhir+json"
+            mimeType="application/fhir+json",
         )
     ]
 
@@ -41,9 +39,9 @@ async def read_resource(uri: str) -> types.ReadResourceResult:
     return types.ReadResourceResult(
         contents=[
             types.TextResourceContents(
-                uri=uri,
+                uri=uri,  # type: ignore[arg-type]
                 mimeType="application/fhir+json",
-                text=f"GET {url}"
+                text=f"GET {url}",
             )
         ]
     )
@@ -59,21 +57,19 @@ async def list_tools() -> list[types.Tool]:
                 "type": "object",
                 "properties": {
                     "resourceType": {"type": "string"},
-                    "searchParams": {"type": "object"}
+                    "searchParams": {"type": "object"},
                 },
-                "required": ["resourceType"]
-            }
+                "required": ["resourceType"],
+            },
         ),
         types.Tool(
             name="read_fhir",
             description="Read FHIR resource by URI",
             inputSchema={
                 "type": "object",
-                "properties": {
-                    "uri": {"type": "string"}
-                },
-                "required": ["uri"]
-            }
+                "properties": {"uri": {"type": "string"}},
+                "required": ["uri"],
+            },
         ),
         types.Tool(
             name="create_fhir_resource",
@@ -82,11 +78,11 @@ async def list_tools() -> list[types.Tool]:
                 "type": "object",
                 "properties": {
                     "resourceType": {"type": "string"},
-                    "resourceData": {"type": "object"}
+                    "resourceData": {"type": "object"},
                 },
-                "required": ["resourceType", "resourceData"]
-            }
-        )
+                "required": ["resourceType", "resourceData"],
+            },
+        ),
     ]
 
 
@@ -106,7 +102,12 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         resource_id = parsed.path.strip("/")
 
         if not resource_type:
-            return [types.TextContent(type="text", text=f"Error: Could not determine resource type from URI: {uri}")]
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Error: Could not determine resource type from URI: {uri}",
+                )
+            ]
 
         url = f"{FHIR_BASE_URL}/{resource_type}/{resource_id}"
         return [types.TextContent(type="text", text=f"GET {url}")]
